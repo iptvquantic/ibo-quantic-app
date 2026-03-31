@@ -13,6 +13,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Download app source
+        run: |
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/source/app_source.tar.gz \
+            -o app_source.tar.gz
+          tar -xzf app_source.tar.gz
+          echo "Files extracted:"
+          ls -la
+          ls app/ || echo "no app dir"
+
+      - name: Setup Gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nnetworkTimeout=10000\nvalidateDistributionUrl=true\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n' > gradle/wrapper/gradle-wrapper.properties
+          curl -fsSL "https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
+          chmod +x gradlew
+          echo "Gradle wrapper ready:"
+          ls -la gradle/wrapper/
+
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
@@ -25,19 +44,13 @@ jobs:
       - name: Accept licenses
         run: yes | sdkmanager --licenses || true
 
-      - name: Install SDK
+      - name: Install SDK components
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Download Gradle wrapper
-        run: |
-          mkdir -p gradle/wrapper
-          curl -fL https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
-
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-
       - name: Build APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk IBO_QUANTIC.apk
@@ -48,12 +61,3 @@ jobs:
           name: IBO_QUANTIC_APK
           path: IBO_QUANTIC.apk
           retention-days: 30
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v1.0
-          name: IBO QUANTIC v1.0
-          files: IBO_QUANTIC.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
